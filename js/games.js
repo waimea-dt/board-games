@@ -1,16 +1,72 @@
+const games = {
+    "pinned" : {
+        "name": "Pinned",
+        "icon": "📌",
+        "instructions": `
+            <h4>Game Setup</h4>
+            <ul>
+                <li>A row of 16 squares, numbered 1 to 16 from left to right</li>
+                <li>5 counters (total) are placed randomly on the board - 4 white and 1 black</li>
+                <li>Decide who goes first</li>
+            </ul>
+
+            <h4>Gameplay</h4>
+            <ul>
+                <li>Players take turns - You may not skip your turn</li>
+                <li>
+                    On your turn you must do exactly one of the following:
+                    <ul>
+                        <li>Slide any counter (black or white) any number of squares to the left, as long as no other counter is in the way and the destination square is empty, or...</li>
+                        <li>Remove the counter on square 1 (only if a counter is there)</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4>Win Condition</h4>
+            <p>The player who removes the black counter from square 1 wins</p>
+        `,
+        "boardSize": 16,
+        "whiteTokens": 6,
+        "blackTokens": 1,
+    },
+    "squeeze" : {
+        "name": "The Squeeze",
+        "icon": "🗜️",
+        "instructions": "Pinned instructions",
+        "boardSize": 12,
+        "whiteTokens": 6,
+        "blackTokens": 1,
+    },
+    "leapfrog" : {
+        "name": "Leap Frog",
+        "icon": "🐸",
+        "instructions": "Pinned instructions",
+        "boardSize": 12,
+        "whiteTokens": 6,
+        "blackTokens": 1,
+    },
+    "chain" : {
+        "name": "Chain Reaction",
+        "icon": "💣",
+        "instructions": "Pinned instructions",
+        "boardSize": 12,
+        "whiteTokens": 6,
+        "blackTokens": 1,
+    },
+}
+
 const white = 'white'
 const black = 'black'
 const empty = 'empty'
 
 const game = {
-    "names": ['Player 1', 'Player 2'],
+    "config": null,
+
+    "players": ['Player 1', 'Player 2'],
     "scores": [0, 0],
     "moves": [0, 0],
 
     "board": [],
-    "boardSize": 16,
-    "whiteTokens": 6,
-    "blackTokens": 1,
 
     "inProgress": false,
     "turn": 0,
@@ -24,17 +80,62 @@ const game = {
     "placement": null,
 }
 
-let statusEl, infoEl, boardEl = null
+let selectEl, nameEl, statusEl, infoEl, instructEl, boardEl = null
+
+
+document.addEventListener("DOMContentLoaded", initialise)
 
 
 function initialise() {
-    statusEl = document.getElementById('status')
-    infoEl = document.getElementById('info')
+    selectEl = document.getElementById("game-select")
+    nameEl = document.getElementById('game-name')
+    statusEl = document.getElementById('game-status')
+    infoEl = document.getElementById('game-info')
+    instructEl = document.getElementById('game-instructions')
     boardEl = document.querySelector('board')
 
-    initialiseBoard()
+    let options = ""
+    for (const [id, game] of Object.entries(games)) {
+        options += `<option value="${id}">${game.name}</option>`
+    }
+    selectEl.innerHTML = options
+    selectEl.addEventListener("change", setupGame)
+
+    setupGame()
     showBoard()
     getNames()
+}
+
+function setupGame() {
+    game.config = games[selectEl.value]
+    console.log("Selected", game.config.name)
+    if (!game.config) throw new Error("No selected game")
+
+    nameEl.innerText = `${game.config.name} ${game.config.icon}`
+
+    const gameInstructions = document.getElementById("game-instructions")
+    gameInstructions.innerHTML = `
+        <summary>Instructions for ${game.config.name}</summary>
+        <h3>How to Play ${game.config.name} ${game.config.icon}</h3>
+        ${game.config.instructions}
+    `
+    initialiseBoard()
+}
+
+function initialiseBoard() {
+    createEmptyBoard(game.config.boardSize)
+    placeCounterRandomly(
+        white,
+        game.config.whiteTokens,
+        1,
+        game.config.boardSize - 1
+    )
+    placeCounterRandomly(
+        black,
+        game.config.blackTokens,
+        Math.floor(game.config.boardSize / 3),
+        game.config.boardSize - 1
+    )
 }
 
 function randInt(min, max) {
@@ -154,12 +255,6 @@ function showBoard() {
     })
 }
 
-function initialiseBoard() {
-    createEmptyBoard(game.boardSize)
-    placeCounterRandomly(white, game.whiteTokens, 1, game.boardSize - 1)
-    placeCounterRandomly(black, game.blackTokens, Math.floor(game.boardSize / 3), game.boardSize - 1)
-}
-
 function getNames() {
     const namesForm = document.createElement('form')
     namesForm.innerHTML = `
@@ -188,8 +283,8 @@ function getNames() {
         console.log(data)
 
         if (data.p1 && data.p2) {
-            game.names[0] = data.p1
-            game.names[1] = data.p2
+            game.players[0] = data.p1
+            game.players[1] = data.p2
             game.inProgress = true
 
             statusEl.replaceChildren()
@@ -203,7 +298,7 @@ function getNames() {
 
 function showNames() {
     infoEl.innerHTML = `
-        ${game.names[0]} vs ${game.names[1]}
+        ${game.players[0]} vs ${game.players[1]}
     `
 }
 
@@ -217,7 +312,7 @@ function switchPlayer() {
 
 function playerSelect() {
     statusEl.innerHTML = `
-        <h3>${game.names[game.turn]}, your turn</h3>
+        <h3>${game.players[game.turn]}, your turn</h3>
         <p>Select a token to move...</p>
     `
     game.isPlacing = false
@@ -228,7 +323,7 @@ function playerSelect() {
 
 function playerPlace() {
     statusEl.innerHTML = `
-        <h3>${game.names[game.turn]}, your turn</h3>
+        <h3>${game.players[game.turn]}, your turn</h3>
         <p>Select where to place the token...</p>
     `
     game.isSelecting = false
@@ -244,7 +339,4 @@ function moveToken() {
 
     showBoard()
 }
-
-
-document.addEventListener("DOMContentLoaded", initialise)
 

@@ -3,7 +3,20 @@
     --board-square-label:   var(--pico-color-slate-500);
 }
 
-main {
+body > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+
+    select {
+        width: fit-content;
+    }
+}
+
+
+body > main {
+    width: 100%;
     max-width: 60rem;
     margin: 2rem auto;
 }
