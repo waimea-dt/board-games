@@ -1,0 +1,71 @@
+:root {
+    --board-square-bg:      var(--pico-color-slate-800);
+    --board-square-label:   var(--pico-color-slate-500);
+}
+
+main {
+    max-width: 60rem;
+    margin: 2rem auto;
+}
+
+
+board {
+    display: flex;
+    gap: 0.25rem;
+
+    cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+
+        square {
+            width: 3rem;
+            height: 3rem;
+            background-color: var(--board-square-bg);
+            border-radius: 0.25rem;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            &::after {
+                content: "";
+                width: 2rem;
+                height: 2rem;
+                border-radius: 2rem;
+            }
+
+            &.black::after { background-color: #000; }
+            &.white::after { background-color: #fff; }
+
+            &.selecting {
+                outline: 3px solid var(--pico-primary);
+                cursor: pointer;
+            }
+
+            &.placing {
+                outline: 3px solid var(--pico-primary);
+                cursor: pointer;
+            }
+
+            &.selected {
+                background-color: var(--pico-primary);
+            }
+        }
+
+        label {
+            color: var(--board-square-label);
+        }
+    }
+}
+
+.names-form {
+    display: flex;
+    gap: 1rem;
+
+    input {
+        margin: 0;
+        max-width: 15rem;
+    }
+}
