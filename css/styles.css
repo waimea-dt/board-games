@@ -65,6 +65,10 @@ board {
             &.selected {
                 background-color: var(--pico-primary);
             }
+
+            &.marked {
+                background-color: var(--pico-color-slate-700);
+            }
         }
 
         label {

@@ -1,8 +1,12 @@
-const games = {
-    "pinned" : {
-        "name": "Pinned",
-        "icon": "📌",
-        "instructions": `
+const white = 'white'
+const black = 'black'
+const empty = 'empty'
+
+const gameConfigs = {
+    pinned: {
+        name: 'Pinned',
+        icon: '📌',
+        instructions: `
             <h4>Game Setup</h4>
             <ul>
                 <li>A row of 16 squares, numbered 1 to 16 from left to right</li>
@@ -25,81 +29,321 @@ const games = {
             <h4>Win Condition</h4>
             <p>The player who removes the black counter from square 1 wins</p>
         `,
-        "boardSize": 16,
-        "whiteTokens": 6,
-        "blackTokens": 1,
+        boardSize: 16,
+        whiteTokens: 4,
+        blackTokens: 1,
+        whitePlacements: [],
+        blackPlacements: [],
+        markSquares: [0],
     },
-    "squeeze" : {
-        "name": "The Squeeze",
-        "icon": "🗜️",
-        "instructions": "Pinned instructions",
-        "boardSize": 12,
-        "whiteTokens": 6,
-        "blackTokens": 1,
+    squeeze: {
+        name: 'The Squeeze',
+        icon: '🗜️',
+        instructions: `
+            <h4>Game Setup</h4>
+            <ul>
+                <li>A row of 15 squares, numbered 1 to 15 from left to right</li>
+                <li>Player 1 places 3 counters at squares 5, 7, and 9</li>
+                <li>Player 2 places 3 counters at squares 6, 8, and 10</li>
+                <li>Decide who goes first</li>
+            </ul>
+
+            <h4>Gameplay</h4>
+            <ul>
+                <li>Players take turns. You may not skip your turn</li>
+                <li>
+                    On your turn you must do exactly one of the following:
+                    <ul>
+                        <li>Move one of your counters exactly one square left or right into an empty square</li>
+                        <li>Swap one of your counters with an adjacent opponent counter, moving your counter into their square and their counter into yours, but...</li>
+                        <li>You may not swap an opponent counter into a danger zone square (the end squares)</li>
+                    </ul>
+                </li>
+                <li>After both players have taken their turn, the board shrinks. The square at each end is removed. Any counter on a removed square is crushed and eliminated</li>
+            </ul>
+
+            <h4>Win Condition</h4>
+            <p>The last player with at least one counter remaining on the board wins</p>
+        `,
+        boardSize: 15,
+        whiteTokens: 3,
+        blackTokens: 3,
+        whitePlacements: [4, 6, 8],
+        blackPlacements: [5, 7, 9],
+        markSquares: [0, 14],
     },
-    "leapfrog" : {
-        "name": "Leap Frog",
-        "icon": "🐸",
-        "instructions": "Pinned instructions",
-        "boardSize": 12,
-        "whiteTokens": 6,
-        "blackTokens": 1,
+    leapfrog: {
+        name: 'Leap Frog',
+        icon: '🐸',
+        instructions: `
+            <h4>Game Setup</h4>
+            <ul>
+                <li>A row of 11 squares, numbered 1 to 11 from left to right</li>
+                <li>Player 1 places 2 frogs (counters) at squares 1 and 2. They only ever move right</li>
+                <li>Player 2 places 2 frogs (counters) at squares 10 and 11. They only ever move left</li>
+                <li>Decide who goes first</li>
+            </ul>
+
+            <h4>Gameplay</h4>
+            <ul>
+                <li>Players take turns. You may not skip your turn</li>
+                <li>
+                    On your turn you must move one of your frogs using exactly one of the following moves:
+                    <ul>
+                        <li>Hop: move one square forward into the empty square directly ahead</li>
+                        <li>Jump: leap over exactly one opponent frog directly in front of you, landing in the empty square immediately beyond</li>
+                    </ul>
+                </li>
+                <li>You may not move backward</li>
+                <li>You may not jump over your own frogs</li>
+                <li>You may not jump over more than one frog at a time</li>
+            </ul>
+
+            <h4>Win Condition</h4>
+            <ul>
+                <li>The first player to move one of their frogs past both opponent frogs wins</li>
+                <li>If a player has no legal move on their turn, their opponent wins</li>
+            </ul>
+        `,
+        boardSize: 11,
+        whiteTokens: 2,
+        blackTokens: 2,
+        whitePlacements: [0, 1],
+        blackPlacements: [9, 10],
+        markSquares: [],
     },
-    "chain" : {
-        "name": "Chain Reaction",
-        "icon": "💣",
-        "instructions": "Pinned instructions",
-        "boardSize": 12,
-        "whiteTokens": 6,
-        "blackTokens": 1,
+    chain: {
+        name: 'Chain Reaction',
+        icon: '💣',
+        instructions: `
+            <h4>Game Setup</h4>
+            <ul>
+                <li>A row of 12 squares, numbered 1 to 12 from left to right</li>
+                <li>The board starts empty</li>
+                <li>Both players have a supply of bombs (counters) in their own colour</li>
+                <li>Decide who goes first</li>
+            </ul>
+
+            <h4>Gameplay</h4>
+            <ul>
+                <li>Players take turns. You may not skip your turn</li>
+                <li>On your turn you must place one of your bombs on an empty square, but ...</li>
+                <li>You cannot place your bomb directly between two opponent bombs since it would immediately be defused (see rule below)</li>
+                <li>
+                    After placing, the following rules apply in order:
+                    <ul>
+                        <li>Defuse rule: if any opponent bomb now has one of your bombs on each side, it is defused and removed from the board. Two bombs can be defused in one go</li>
+                        <li>Chain reaction rule: if your bomb creates an unbroken chain of 3 or more of your own bombs, the entire chain explodes. All bombs in the chain are removed and you score points equal to chain length</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4>Win Condition</h4>
+            <p>The first player to reach 10 points wins</p>
+        `,
+        boardSize: 12,
+        whiteTokens: 0,
+        blackTokens: 0,
+        whitePlacements: [],
+        blackPlacements: [],
+        markSquares: [],
     },
 }
 
-const white = 'white'
-const black = 'black'
-const empty = 'empty'
+class BaseGame {
+    constructor(config) {
+        this.config = config
 
-const game = {
-    "config": null,
+        this.players = ['Player 1', 'Player 2']
+        this.scores = [0, 0]
+        this.moves = [0, 0]
 
-    "players": ['Player 1', 'Player 2'],
-    "scores": [0, 0],
-    "moves": [0, 0],
+        this.board = []
 
-    "board": [],
+        this.inProgress = false
+        this.turn = 0
 
-    "inProgress": false,
-    "turn": 0,
+        this.isSelecting = false
+        this.canSelect = []
+        this.selection = null
 
-    "isSelecting": false,
-    "canSelect": [],
-    "selection": null,
+        this.isPlacing = false
+        this.canPlace = []
+        this.placement = null
+    }
 
-    "isPlacing": false,
-    "canPlace": [],
-    "placement": null,
+    initialiseBoard() {
+        this.board.length = 0
+        this.setupBoard()
+    }
+
+    setupBoard() {
+        throw new Error('setupBoard must be implemented by a game variant')
+    }
+
+    createEmptyBoard(size) {
+        this.board.length = 0
+        for (let i = 0; i < size; i++) {
+            this.board.push(empty)
+        }
+    }
+
+    randInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min
+    }
+
+    placeTokenRandomly(token, count, minPos, maxPos) {
+        let remaining = count
+        while (remaining > 0) {
+            const position = this.randInt(minPos, maxPos)
+            if (this.board[position] === empty) {
+                this.board[position] = token
+                remaining--
+            }
+        }
+    }
+
+    placeTokens(token) {
+        const placements = token === white ? this.config.whitePlacements : this.config.blackPlacements
+        for (let i = 0; i < placements.length; i++) {
+            const boardIndex = placements[i]
+            if (boardIndex >= 0 && boardIndex < this.board.length) {
+                this.board[boardIndex] = token
+            }
+        }
+    }
+
+    pickTurn() {
+        this.turn = Math.floor(Math.random() * 2)
+    }
+
+    switchPlayer() {
+        this.turn = (this.turn + 1) % 2
+    }
+
+    beginPlayerSelection() {
+        this.isPlacing = false
+        this.isSelecting = true
+        this.canSelect = this.getLegalSelections()
+        this.selection = null
+    }
+
+    beginPlayerPlacement() {
+        this.isSelecting = false
+        this.isPlacing = true
+        this.canPlace = this.getLegalPlacements(this.selection)
+        this.placement = null
+    }
+
+    getLegalSelections() {
+        return [black, white]
+    }
+
+    getLegalPlacements() {
+        return [empty]
+    }
+
+    isValidSelection(squareClassList) {
+        return this.canSelect.some((token) => squareClassList.contains(token))
+    }
+
+    isValidPlacement(squareClassList) {
+        return this.canPlace.some((token) => squareClassList.contains(token))
+    }
+
+    applyMove() {
+        const temp = this.board[this.placement]
+        this.board[this.placement] = this.board[this.selection]
+        this.board[this.selection] = temp
+    }
+
+    getWinState() {
+        return null
+    }
 }
 
-let selectEl, nameEl, statusEl, infoEl, instructEl, boardEl = null
+class PinnedGame extends BaseGame {
+    setupBoard() {
+        this.createEmptyBoard(this.config.boardSize)
+        this.placeTokenRandomly(
+            white,
+            this.config.whiteTokens,
+            1,
+            this.config.boardSize - 1
+        )
+        this.placeTokenRandomly(
+            black,
+            this.config.blackTokens,
+            Math.floor(this.config.boardSize / 3),
+            this.config.boardSize - 1
+        )
+    }
+}
 
+class SqueezeGame extends BaseGame {
+    setupBoard() {
+        this.createEmptyBoard(this.config.boardSize)
+        this.placeTokens(white)
+        this.placeTokens(black)
+    }
+}
 
-document.addEventListener("DOMContentLoaded", initialise)
+class LeapfrogGame extends BaseGame {
+    setupBoard() {
+        this.createEmptyBoard(this.config.boardSize)
+        this.placeTokens(white)
+        this.placeTokens(black)
+    }
+}
 
+class ChainReactionGame extends BaseGame {
+    setupBoard() {
+        this.createEmptyBoard(this.config.boardSize)
+    }
+}
+
+const gameVariants = {
+    pinned: PinnedGame,
+    squeeze: SqueezeGame,
+    leapfrog: LeapfrogGame,
+    chain: ChainReactionGame,
+}
+
+let currentGame = null
+let selectEl, nameEl, statusEl, infoEl, boardEl, instructEl = null
+let boardSquares = []
+
+document.addEventListener('DOMContentLoaded', initialise)
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        if (currentGame?.inProgress && currentGame?.isPlacing) {
+            currentGame.isPlacing = false
+            currentGame.isSelecting = true
+
+            for (const square of boardSquares) {
+                square.classList.remove('selected')
+                square.classList.remove('placing')
+            }
+            playerSelect()
+        }
+    }
+})
 
 function initialise() {
-    selectEl = document.getElementById("game-select")
+    selectEl = document.getElementById('game-select')
     nameEl = document.getElementById('game-name')
     statusEl = document.getElementById('game-status')
     infoEl = document.getElementById('game-info')
     instructEl = document.getElementById('game-instructions')
     boardEl = document.querySelector('board')
 
-    let options = ""
-    for (const [id, game] of Object.entries(games)) {
-        options += `<option value="${id}">${game.name}</option>`
+    let options = ''
+    for (const [id, config] of Object.entries(gameConfigs)) {
+        options += `<option value="${id}">${config.name}</option>`
     }
     selectEl.innerHTML = options
-    selectEl.addEventListener("change", setupGame)
+    selectEl.addEventListener('change', setupGame)
 
     setupGame()
     showBoard()
@@ -107,74 +351,41 @@ function initialise() {
 }
 
 function setupGame() {
-    game.config = games[selectEl.value]
-    console.log("Selected", game.config.name)
-    if (!game.config) throw new Error("No selected game")
+    const selectedGameId = selectEl.value
+    const config = gameConfigs[selectedGameId]
+    const GameVariant = gameVariants[selectedGameId]
+    if (!config || !GameVariant) throw new Error('No selected game')
 
-    nameEl.innerText = `${game.config.name} ${game.config.icon}`
+    currentGame = new GameVariant(config)
+    console.log('Selected', currentGame.config.name)
 
-    const gameInstructions = document.getElementById("game-instructions")
-    gameInstructions.innerHTML = `
-        <summary>Instructions for ${game.config.name}</summary>
-        <h3>How to Play ${game.config.name} ${game.config.icon}</h3>
-        ${game.config.instructions}
+    nameEl.innerText = `${currentGame.config.name} ${currentGame.config.icon}`
+    instructEl.innerHTML = `
+        <summary>Instructions for ${currentGame.config.name}</summary>
+        <h3>How to Play ${currentGame.config.name} ${currentGame.config.icon}</h3>
+        ${currentGame.config.instructions}
     `
-    initialiseBoard()
-}
 
-function initialiseBoard() {
-    createEmptyBoard(game.config.boardSize)
-    placeCounterRandomly(
-        white,
-        game.config.whiteTokens,
-        1,
-        game.config.boardSize - 1
-    )
-    placeCounterRandomly(
-        black,
-        game.config.blackTokens,
-        Math.floor(game.config.boardSize / 3),
-        game.config.boardSize - 1
-    )
-}
-
-function randInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min
-}
-
-function createEmptyBoard(size) {
-    game.board.size = 0
-    let count = size
-    while (count > 0) {
-        game.board.push(empty)
-        count--
-    }
-}
-
-function placeCounterRandomly(counter, num, minPos, maxPos) {
-    let count = num
-    while (count > 0) {
-        const position = randInt(minPos, maxPos)
-        if (game.board[position] === empty) {
-            game.board[position] = counter
-            count--
-        }
-    }
+    currentGame.initialiseBoard()
+    showBoard()
 }
 
 function showBoard() {
     boardEl.replaceChildren()
+    boardSquares = []
 
-    squares = []
-    for (let i = 0; i < game.board.length; i++) {
+    for (let i = 0; i < currentGame.board.length; i++) {
         const cellEl = document.createElement('cell')
         const squareEl = document.createElement('square')
         const labelEl = document.createElement('label')
 
-        squareEl.className = game.board[i]
+        squareEl.className = currentGame.board[i]
+        if (currentGame.config.markSquares.includes(i))
+            squareEl.classList.add('marked')
+
         labelEl.innerText = i + 1
 
-        squares.push(squareEl)
+        boardSquares.push(squareEl)
         cellEl.appendChild(squareEl)
         cellEl.appendChild(labelEl)
         boardEl.appendChild(cellEl)
@@ -182,25 +393,21 @@ function showBoard() {
         squareEl.addEventListener('click', (e) => {
             const square = e.currentTarget
 
-            if (game.inProgress && game.isSelecting) {
-                if ((game.canSelect.includes(white) && square.classList.contains(white)) ||
-                    (game.canSelect.includes(black) && square.classList.contains(black)) ||
-                    (game.canSelect.includes(empty) && square.classList.contains(empty))) {
+            if (currentGame.inProgress && currentGame.isSelecting) {
+                if (currentGame.isValidSelection(square.classList)) {
                     square.classList.remove('selecting')
                     square.classList.add('selected')
-                    game.selection = i
+                    currentGame.selection = i
                     playerPlace()
                 }
             }
-            else if (game.inProgress && game.isPlacing) {
-                if ((game.canPlace.includes(white) && square.classList.contains(white)) ||
-                    (game.canPlace.includes(black) && square.classList.contains(black)) ||
-                    (game.canPlace.includes(empty) && square.classList.contains(empty))) {
+            else if (currentGame.inProgress && currentGame.isPlacing) {
+                if (currentGame.isValidPlacement(square.classList)) {
                     square.classList.remove('placing')
                     square.classList.add('placed')
-                    game.placement = i
+                    currentGame.placement = i
                     moveToken()
-                    switchPlayer()
+                    currentGame.switchPlayer()
                     playerSelect()
                 }
                 else if (square.classList.contains('selected')) {
@@ -210,49 +417,30 @@ function showBoard() {
                 }
             }
         })
+
         squareEl.addEventListener('mouseover', (e) => {
             const square = e.currentTarget
-            if (game.inProgress && game.isSelecting) {
-                if ((game.canSelect.includes(white) && square.classList.contains(white)) ||
-                    (game.canSelect.includes(black) && square.classList.contains(black)) ||
-                    (game.canSelect.includes(empty) && square.classList.contains(empty))) {
+            if (currentGame.inProgress && currentGame.isSelecting) {
+                if (currentGame.isValidSelection(square.classList)) {
                     square.classList.add('selecting')
                 }
             }
-            else if (game.inProgress && game.isPlacing) {
-                if ((game.canPlace.includes(white) && square.classList.contains(white)) ||
-                    (game.canPlace.includes(black) && square.classList.contains(black)) ||
-                    (game.canPlace.includes(empty) && square.classList.contains(empty))) {
+            else if (currentGame.inProgress && currentGame.isPlacing) {
+                if (currentGame.isValidPlacement(square.classList)) {
                     square.classList.add('placing')
                 }
             }
         })
-        squareEl.addEventListener('mouseout', (e) => {
-            const square = e.currentTarget
-            if (game.inProgress && game.isSelecting) {
-                square.classList.remove('selecting')
+
+        squareEl.addEventListener('mouseout', () => {
+            if (currentGame.inProgress && currentGame.isSelecting) {
+                squareEl.classList.remove('selecting')
             }
-            else if (game.inProgress && game.isPlacing) {
-                square.classList.remove('placing')
+            else if (currentGame.inProgress && currentGame.isPlacing) {
+                squareEl.classList.remove('placing')
             }
         })
     }
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            if (game.inProgress && game.isPlacing) {
-                game.isPlacing = false
-                game.isSelecting = true
-
-                for (let i = 0; i < squares.length; i++) {
-                    squares[i].classList.remove('selected')
-                    squares[i].classList.remove('placing')
-                    playerSelect()
-                }
-            }
-
-        }
-    })
 }
 
 function getNames() {
@@ -274,69 +462,59 @@ function getNames() {
         >
         <button>Begin</button>
     `
+
     statusEl.replaceChildren(namesForm)
     namesForm.classList.add('names-form')
+
     namesForm.addEventListener('submit', (e) => {
         e.preventDefault()
         const formData = new FormData(e.target)
         const data = Object.fromEntries(formData.entries())
-        console.log(data)
 
         if (data.p1 && data.p2) {
-            game.players[0] = data.p1
-            game.players[1] = data.p2
-            game.inProgress = true
+            currentGame.players[0] = data.p1
+            currentGame.players[1] = data.p2
+            currentGame.inProgress = true
 
             statusEl.replaceChildren()
 
             showNames()
-            pickTurn()
+            currentGame.pickTurn()
             playerSelect()
         }
     })
 }
 
 function showNames() {
-    infoEl.innerHTML = `
-        ${game.players[0]} vs ${game.players[1]}
-    `
-}
-
-function pickTurn() {
-    game.turn = Math.floor(Math.random() * 2)
-}
-
-function switchPlayer() {
-    game.turn = (game.turn + 1) % 2
+    infoEl.innerHTML = `${currentGame.players[0]} vs ${currentGame.players[1]}`
 }
 
 function playerSelect() {
     statusEl.innerHTML = `
-        <h3>${game.players[game.turn]}, your turn</h3>
+        <h3>${currentGame.players[currentGame.turn]}, your turn</h3>
         <p>Select a token to move...</p>
     `
-    game.isPlacing = false
-    game.isSelecting = true
-    game.canSelect = [black, white]
-    game.selection = null
+
+    currentGame.beginPlayerSelection()
 }
 
 function playerPlace() {
     statusEl.innerHTML = `
-        <h3>${game.players[game.turn]}, your turn</h3>
+        <h3>${currentGame.players[currentGame.turn]}, your turn</h3>
         <p>Select where to place the token...</p>
     `
-    game.isSelecting = false
-    game.isPlacing = true
-    game.canPlace = [empty]
-    game.placement = null
+
+    currentGame.beginPlayerPlacement()
 }
 
 function moveToken() {
-    const temp = game.board[game.placement]
-    game.board[game.placement] = game.board[game.selection]
-    game.board[game.selection] = temp
+    currentGame.applyMove()
+
+    const winState = currentGame.getWinState()
+    if (winState) {
+        currentGame.inProgress = false
+        statusEl.innerHTML = `<h3>${winState.message}</h3>`
+    }
 
     showBoard()
 }
-
