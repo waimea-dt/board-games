@@ -1,16 +1,26 @@
 :root {
     --board-bg:                 var(--pico-color-slate-800);
     --board-square-bg:          var(--pico-color-slate-950);
-    --board-square-marked-bg:   var(--pico-color-slate-900);
+    --board-square-marked-icon: var(--pico-color-slate-800);
 
     --board-square-valid:       var(--pico-color-slate-600);
-    --board-square-select:      var(--pico-color-slate-300);
+    --board-square-select:      var(--pico-primary);
 
     --board-square-label:       var(--pico-color-slate-600);
 
-    --board-token-white:        var(--pico-color-red-600);
-    --board-token-black:        var(--pico-color-blue-600);
+    --board-token-white:        var(--pico-color-azure-500, #fff);
+    --board-token-black:        var(--pico-color-pink-500, #000);
+
+    --board-square-size:        3rem;
+    --board-square-icon-size:   2.5rem;
 }
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+}
+
 
 body > header {
     display: flex;
@@ -18,8 +28,11 @@ body > header {
     justify-content: space-between;
     gap: 1rem;
 
+    --pico-line-height: 1.15;
+
     h1 {
         flex: 1;
+        color: var(--pico-color-slate-600);
     }
 
     select {
@@ -30,17 +43,103 @@ body > header {
 
 
 body > main {
+    flex: 1;
     width: 100%;
     max-width: 60rem;
-    margin: 2rem auto;
+    margin: 1rem auto;
+
+    h1 {
+        text-align: center;
+        margin: 0 0 2rem;
+    }
+
+    h2 {
+        text-align: center;
+        margin-block: 2rem;
+        line-height: 1.8;
+        color: var(--pico-color-slate-400);
+    }
+
+    h3 strong {
+        color: var(--pico-primary);
+    }
 }
 
+body > footer {
+    font-size: 0.8rem;
+    color: var(--pico-color-slate-600);
+    text-align: center;
+}
+
+#game-status {
+    max-width: 50rem;
+    margin: 2rem auto;
+    text-align: center;
+}
+
+#game-instructions {
+    max-width: 40rem;
+    margin: 2rem auto 0;
+    padding: 1rem;
+
+    --pico-accordion-close-summary-color:   var(--pico-color-slate-600);
+    --pico-accordion-active-summary-color:  var(--pico-color-slate-500);
+
+    summary {
+        display: flex;
+        justify-content: center;
+    }
+
+    &:open {
+        border-radius: 0.5rem;
+        background-color: var(--pico-color-slate-900);
+        border: 1px solid var(--pico-color-slate-800);
+    }
+}
+
+#names-form {
+    margin: 2rem auto;
+    display: flex;
+    gap: 1rem;
+    width: fit-content;
+
+    input {
+        margin: 0;
+        max-width: 15rem;
+        text-align: center;
+        color: var(--pico-color);
+    }
+}
+
+#confirm-dialog {
+    --pico-modal-overlay-background-color: #0006;
+    --pico-modal-overlay-backdrop-filter: blur(2px);
+
+    form {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background-color: var(--pico-color-slate-800);
+        box-shadow: 0 0 5rem #000;
+    }
+
+    menu {
+        display: flex;
+        gap: 1rem;
+        padding: 0;
+        margin-bottom: 0;
+
+        button[value="cancel"] {
+            --pico-background-color: var(--pico-color-slate-600);
+            --pico-border-color: var(--pico-color-slate-600);
+        }
+    }
+}
 
 board {
     margin: 2rem auto;
     display: flex;
     gap: 0.3rem;
-    padding: 0.3rem;
+    padding: 0.75rem 0.75rem 0.25rem;
     background-color: var(--board-bg);
     width: fit-content;
     border-radius: 0.5rem;
@@ -52,8 +151,9 @@ board {
         gap: 0.5rem;
 
         square {
-            width: 3rem;
-            height: 3rem;
+            position: relative;
+            width: var(--board-square-size);
+            height: var(--board-square-size);
             background-color: var(--board-square-bg);
             border-radius: 0.25rem;
 
@@ -66,6 +166,7 @@ board {
                 width: 2rem;
                 height: 2rem;
                 border-radius: 2rem;
+                z-index: 1;
             }
 
             &.black::after { background-color: var(--board-token-black); }
@@ -76,7 +177,29 @@ board {
             }
 
             &.marked {
-                background-color: var(--board-square-marked-bg);
+                color: var(--board-square-marked-icon);
+
+                &::before {
+                    content: "";
+                    position: absolute;
+                    inset: 0;
+                    margin: auto;
+                    width: var(--board-square-icon-size);
+                    height: var(--board-square-icon-size);
+                    background-color: currentColor;
+                    pointer-events: none;
+                    mask-position: center;
+                    mask-repeat: no-repeat;
+                    mask-size: contain;
+                }
+
+                &.arrow::before {
+                    mask-image: url("../images/arrow.svg");
+                }
+
+                &.skull::before {
+                    mask-image: url("../images/skull.svg");
+                }
             }
         }
 
@@ -99,14 +222,3 @@ board {
     }
 }
 
-.names-form {
-    margin: 2rem auto;
-    display: flex;
-    gap: 1rem;
-    width: fit-content;
-
-    input {
-        margin: 0;
-        max-width: 15rem;
-    }
-}

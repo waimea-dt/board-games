@@ -3,7 +3,7 @@ const gameConfigs = {
         name: 'Pinned',
         icon: '📌',
         instructions: `
-            <h4>Game Setup</h4>
+            <h4>Setup</h4>
             <ul>
                 <li>A row of 16 squares, numbered 1 to 16 from left to right</li>
                 <li>5 counters (total) are placed randomly on the board - 4 white and 1 black</li>
@@ -31,12 +31,14 @@ const gameConfigs = {
         whitePlacements: [],
         blackPlacements: [],
         markSquares: [0],
+        markIcon: 'arrow',
+        blockSquares: [],
     },
     squeeze: {
         name: 'The Squeeze',
         icon: '🗜️',
         instructions: `
-            <h4>Game Setup</h4>
+            <h4>Setup</h4>
             <ul>
                 <li>A row of 15 squares, numbered 1 to 15 from left to right</li>
                 <li>Player 1 places 3 counters at squares 5, 7, and 9</li>
@@ -67,12 +69,14 @@ const gameConfigs = {
         whitePlacements: [4, 6, 8],
         blackPlacements: [5, 7, 9],
         markSquares: [0, 14],
+        markIcon: 'skull',
+        blockSquares: [],
     },
     leapfrog: {
         name: 'Leap Frog',
         icon: '🐸',
         instructions: `
-            <h4>Game Setup</h4>
+            <h4>Setup</h4>
             <ul>
                 <li>A row of 11 squares, numbered 1 to 11 from left to right</li>
                 <li>Player 1 places 2 frogs (counters) at squares 1 and 2. They only ever move right</li>
@@ -107,12 +111,14 @@ const gameConfigs = {
         whitePlacements: [0, 1],
         blackPlacements: [9, 10],
         markSquares: [],
+        markIcon: null,
+        blockSquares: [],
     },
     chain: {
         name: 'Chain Reaction',
         icon: '💣',
         instructions: `
-            <h4>Game Setup</h4>
+            <h4>Setup</h4>
             <ul>
                 <li>A row of 12 squares, numbered 1 to 12 from left to right</li>
                 <li>The board starts empty</li>
@@ -143,6 +149,8 @@ const gameConfigs = {
         whitePlacements: [],
         blackPlacements: [],
         markSquares: [],
+        markIcon: null,
+        blockSquares: [],
     },
 }
 
@@ -173,27 +181,35 @@ class BaseGame extends EventTarget {
 
         this.currentPlayer = 0
         this.state = this.STATES.GETTING_NAMES
+        this.debug = true
 
         this.selectedCell = null
         this.selectedToken = null
         this.canSelect = [TOKENS.white, TOKENS.black]
         this.canPlace = [TOKENS.empty]
+        this.validSelectableCells = []
+        this.validPlacementCells = []
+    }
+
+    logFsm(stage, payload) {
+        if (!this.debug) return
+        console.log('[FSM]', stage, payload)
     }
 
     defineStates() {
         return Object.freeze({
-            GETTING_NAMES:    'GETTING_NAMES',
+            GETTING_NAMES:   'GETTING_NAMES',
             SELECTING_TOKEN: 'SELECTING_TOKEN',
-            PLACING_TOKEN:  'PLACING_TOKEN',
+            PLACING_TOKEN:   'PLACING_TOKEN',
         })
     }
 
     defineEvents() {
         return Object.freeze({
-            NAMES_ENTERED:       'NAMES_ENTERED',
+            NAMES_ENTERED: 'NAMES_ENTERED',
             TOKEN_CLICKED: 'TOKEN_CLICKED',
             PLACE_CLICKED: 'PLACE_CLICKED',
-            INVALID:             'INVALID',
+            INVALID:       'INVALID',
         })
     }
 
@@ -254,18 +270,18 @@ class BaseGame extends EventTarget {
         this.currentPlayer = (this.currentPlayer + 1) % 2
     }
 
-    startGame() {
-        this.pickPlayer()
-    }
-
     handleEvent(detail) {
-        console.log("HANDLE", detail)
-
         const event = this.classifyEvent(detail)
         const transition = this.TRANSITIONS[this.state]?.[event]
-        if (!transition) return
 
-        console.log("EVENT", event)
+        this.logFsm('event', {
+            state: this.state,
+            event,
+            detail,
+            transition: transition ? { to: transition.to, action: transition.action } : null,
+        })
+
+        if (!transition) return
 
         this[transition.action](detail)
 
@@ -279,16 +295,31 @@ class BaseGame extends EventTarget {
     }
 
     setState(newState) {
-        console.log("NEW STATE", newState)
-
+        const fromState = this.state
         this.state = newState
+        this.logFsm('state', { from: fromState, to: newState })
         this.dispatchEvent(new CustomEvent('stateChanged', { detail: { state: newState } }))
+    }
+
+    startGame({ p1, p2 }) {
+        this.players[0] = p1
+        this.players[1] = p2
+        this.pickPlayer()
+        this.clearSelection()
     }
 
     selectToken({ cell }) {
         this.selectedCell = cell
         this.selectedToken = this.board[cell]
+        this.validPlacementCells = this.validPlacements(cell)
         this.dispatchEvent(new CustomEvent('tokenSelected', { detail: { cell, token: this.selectedToken } }))
+    }
+
+    clearSelection() {
+        this.selectedCell = null
+        this.selectedToken = null
+        this.validPlacementCells = []
+        this.validSelectableCells = this.validSelections()
     }
 
     moveToken({ cell }) {
@@ -298,31 +329,38 @@ class BaseGame extends EventTarget {
         this.board[fromCell] = TOKENS.empty
         this.board[cell] = token
 
-        this.selectedCell = null
-        this.selectedToken = null
-
+        this.clearSelection()
         this.dispatchEvent(new CustomEvent('tokenMoved', { detail: { fromCell, toCell: cell, token } }))
     }
 
     removeToken({ cell }) {
-        const token = this.selectedToken ?? this.board[cell]
-        this.board[cell] = TOKENS.empty
+        const targetCell = cell ?? this.selectedCell
+        if (targetCell == null) return TOKENS.empty
 
-        this.selectedCell = null
-        this.selectedToken = null
+        const token = this.selectedToken ?? this.board[targetCell]
+        this.board[targetCell] = TOKENS.empty
 
-        this.dispatchEvent(new CustomEvent('tokenMoved', { detail: { fromCell: cell, token } }))
+        this.clearSelection()
+        this.dispatchEvent(new CustomEvent('tokenRemoved', { detail: { fromCell: targetCell, token } }))
 
         return token
     }
 
+    selectTokenAndConfirmRemoval({ cell }) {
+        this.selectToken({ cell })
+        this.confirmRemoval()
+    }
+
+    confirmRemoval() {
+        this.dispatchEvent(new CustomEvent('confirmAction', { detail: { action: 'Remove token?', confirm: 'Remove' } }))
+    }
+
     cancelSelection() {
-        this.selectedCell = null
-        this.selectedToken = null
+        this.clearSelection()
         this.dispatchEvent(new CustomEvent('selectionCancelled'))
     }
 
-    validSelections(cell) {
+    validSelections() {
         return this.board.reduce((acc, e, i) => {
             if (this.canSelect.includes(e)) acc.push(i)
             return acc
@@ -353,6 +391,7 @@ class PinnedGame extends BaseGame {
             GETTING_NAMES:   'GETTING_NAMES',
             SELECTING_TOKEN: 'SELECTING_TOKEN',
             PLACING_TOKEN:   'PLACING_TOKEN',
+            REMOVING_TOKEN:  'REMOVING_TOKEN',
         })
     }
 
@@ -362,6 +401,7 @@ class PinnedGame extends BaseGame {
             TOKEN_CLICKED:        'TOKEN_CLICKED',
             TOKEN_CLICKED_CELL_1: 'TOKEN_CLICKED_CELL_1',
             PLACE_CLICKED:        'PLACE_CLICKED',
+            REMOVAL_CONFIRMED:    'REMOVAL_CONFIRMED',
             INVALID:              'INVALID',
         })
     }
@@ -373,7 +413,11 @@ class PinnedGame extends BaseGame {
             },
             [this.STATES.SELECTING_TOKEN]: {
                 [this.EVENTS.TOKEN_CLICKED]:        { to: this.STATES.PLACING_TOKEN,   action: 'selectToken', },
-                [this.EVENTS.TOKEN_CLICKED_CELL_1]: { to: this.STATES.SELECTING_TOKEN, action: 'removeToken', },
+                [this.EVENTS.TOKEN_CLICKED_CELL_1]: { to: this.STATES.REMOVING_TOKEN,  action: 'selectTokenAndConfirmRemoval', },
+            },
+            [this.STATES.REMOVING_TOKEN]: {
+                [this.EVENTS.REMOVAL_CONFIRMED]:    { to: this.STATES.SELECTING_TOKEN, action: 'removeToken', },
+                [this.EVENTS.INVALID]:              { to: this.STATES.SELECTING_TOKEN, action: 'cancelSelection', },
             },
             [this.STATES.PLACING_TOKEN]: {
                 [this.EVENTS.PLACE_CLICKED]:        { to: this.STATES.SELECTING_TOKEN, action: 'moveToken', },
@@ -399,21 +443,22 @@ class PinnedGame extends BaseGame {
     }
 
     classifyEvent(detail) {
-        console.log("CLASSIFY", detail)
-
         const isEnteringNames       = this.state === this.STATES.GETTING_NAMES
         const isChoosingToken       = this.state === this.STATES.SELECTING_TOKEN
         const isChoosingDestination = this.state === this.STATES.PLACING_TOKEN
+        const isRemovingToken       = this.state === this.STATES.REMOVING_TOKEN
 
         if (isEnteringNames && detail.p1 && detail.p2) return this.EVENTS.NAMES_ENTERED
 
-        if (detail.cell === null || detail.cell === undefined) return this.EVENTS.INVALID
+        if (isRemovingToken) {
+            if (detail.result === 'confirm') return this.EVENTS.REMOVAL_CONFIRMED
+            else                             return this.EVENTS.INVALID
+        }
 
-        console.log("SELECT", this.validSelections(detail.cell))
-        console.log("PLACE", this.validPlacements(detail.cell))
+        if (detail.cell == null) return this.EVENTS.INVALID
 
-        const isValidToken = this.validSelections(detail.cell).includes(detail.cell)
-        const isValidPlace = this.validPlacements(detail.cell).includes(detail.cell)
+        const isValidToken = this.validSelectableCells.includes(detail.cell)
+        const isValidPlace = this.validPlacementCells.includes(detail.cell)
         const isFirstCell = detail.cell === 0
 
         if (isChoosingToken && isValidToken) {
@@ -426,27 +471,42 @@ class PinnedGame extends BaseGame {
         return this.EVENTS.INVALID
     }
 
-    startGame({ p1, p2 }) {
-        this.players[0] = p1
-        this.players[1] = p2
-        this.pickPlayer()
-    }
-
     moveToken({ cell }) {
         super.moveToken({ cell })
         this.switchPlayer()
     }
 
     removeToken({ cell }) {
-        const token = super.removeToken({ cell })
+        const removedCell = cell ?? this.selectedCell
+        const token = super.removeToken({ cell: removedCell })
 
-        if (this.hasWon(cell, token)) {
+        if (this.hasWon(removedCell, token)) {
             this.setState(this.STATES.GAME_OVER)
             this.dispatchEvent(new CustomEvent('gameWon', { detail: { winner: this.currentPlayer } }))
             return
         }
 
         this.switchPlayer()
+    }
+
+    validSelections() {
+        let valid = []
+        for (let i = 0; i < this.board.length; i++) {
+            const token = this.board[i]
+            const validToken = this.canSelect.includes(token)
+            const canBeMoved = i === 0 || (i > 0 && this.board[i - 1] === TOKENS.empty)
+            if (validToken && canBeMoved) valid.push(i)
+        }
+        return valid
+    }
+
+    validPlacements(cell) {
+        let valid = []
+        for (let i = cell - 1; i >= 0; i--) {
+            if (this.board[i] !== TOKENS.empty) break
+            valid.push(i)
+        }
+        return valid
     }
 
     hasWon(cell, token) {
@@ -508,8 +568,9 @@ function initialiseGame() {
     const infoEl = document.getElementById('game-info')
     const instructEl = document.getElementById('game-instructions')
     const boardEl = document.querySelector('board')
+    const dialogEl = document.getElementById('confirm-dialog')
 
-    if (!selectEl || !restartEl || !nameEl || !statusEl || !infoEl || !instructEl || !boardEl) return
+    if (!selectEl || !restartEl || !nameEl || !statusEl || !infoEl || !instructEl || !dialogEl || !boardEl) return
 
     let options = ''
     for (const [id, config] of Object.entries(gameConfigs)) {
@@ -539,12 +600,10 @@ function initialiseGame() {
             currentGame.players[1] = previousPlayerNames[1]
         }
 
-        console.log('Selected', currentGame.config.name)
-
-        nameEl.innerText = `${currentGame.config.name} ${currentGame.config.icon}`
+        nameEl.innerText = `${currentGame.config.icon} ${currentGame.config.name} ${currentGame.config.icon}`
         instructEl.innerHTML = `
-            <summary>Instructions for ${currentGame.config.name}</summary>
-            <h3>How to Play ${currentGame.config.name} ${currentGame.config.icon}</h3>
+            <summary>ⓘ Instructions for ${currentGame.config.name}</summary>
+            <h3>${currentGame.config.name} ${currentGame.config.icon}</h3>
             ${currentGame.config.instructions}
         `
 
@@ -560,6 +619,8 @@ function initialiseGame() {
         game.addEventListener('tokenSelected', renderBoard)
         game.addEventListener('placeSelected', renderBoard)
         game.addEventListener('tokenMoved',    renderBoard)
+        game.addEventListener('tokenRemoved',  renderBoard)
+        game.addEventListener('confirmAction', showConfirmDialog)
         game.addEventListener('gameWon',       onGameWon)
     }
 
@@ -569,6 +630,8 @@ function initialiseGame() {
         game.removeEventListener('tokenSelected', renderBoard)
         game.removeEventListener('placeSelected', renderBoard)
         game.removeEventListener('tokenMoved',    renderBoard)
+        game.removeEventListener('tokenRemoved',  renderBoard)
+        game.removeEventListener('confirmAction', showConfirmDialog)
         game.removeEventListener('gameWon',       onGameWon)
     }
 
@@ -590,8 +653,6 @@ function initialiseGame() {
     setupGame()
 
     function renderBoard() {
-        console.log("RENDER", currentGame.board)
-
         boardEl.replaceChildren()
         boardSquares = []
 
@@ -601,22 +662,28 @@ function initialiseGame() {
             const labelEl = document.createElement('label')
 
             squareEl.className = currentGame.board[i]
+
             if (currentGame.config.markSquares.includes(i)) {
                 squareEl.classList.add('marked')
+                squareEl.classList.add(currentGame.config.markIcon)
             }
 
-            if (i == currentGame.selectedCell) {
+            if (currentGame.config.blockSquares.includes(i)) {
+                squareEl.classList.add('blocked')
+            }
+
+            if (currentGame.selectedCell == i) {
                 squareEl.classList.add('selected')
             }
 
             if (currentGame.state === currentGame.STATES.SELECTING_TOKEN) {
-                if (currentGame.validSelections(i).includes(i)) {
+                if (currentGame.validSelectableCells.includes(i)) {
                     squareEl.classList.add('valid')
                 }
             }
 
             if (currentGame.state === currentGame.STATES.PLACING_TOKEN) {
-                if (currentGame.validPlacements(i).includes(i)) {
+                if (currentGame.validPlacementCells.includes(i)) {
                     squareEl.classList.add('valid')
                 }
             }
@@ -636,13 +703,14 @@ function initialiseGame() {
         if (currentGame.state === currentGame.STATES.GAME_OVER) return
 
         if (currentGame.state === currentGame.STATES.GETTING_NAMES) {
+            statusEl.innerHTML = `<h3>Welcome!</h3> <p>Enter your names and press 'Begin' to play...</p>`
             getNames()
             return
         }
 
-        infoEl.innerHTML = `${currentGame.players[0]} vs ${currentGame.players[1]}`
+        infoEl.innerHTML = `<h2>${currentGame.players[0]} vs ${currentGame.players[1]}</h2>`
 
-        const playerTurn = `<h3>${currentGame.players[currentGame.currentPlayer]}, your turn</h3>`
+        const playerTurn = `<h3><strong>${currentGame.players[currentGame.currentPlayer]}</strong>, it's your turn</h3>`
 
         if (currentGame.state === currentGame.STATES.SELECTING_TOKEN) {
             statusEl.innerHTML = `${playerTurn} <p>Select a token to move...</p>`
@@ -654,12 +722,31 @@ function initialiseGame() {
 
     }
 
+    function showConfirmDialog(event) {
+        const action = event.detail.action
+        const confirm = event.detail.confirm
+
+        const actionEl = dialogEl.querySelector('p')
+        const buttonEl = dialogEl.querySelector('button[value="confirm"]')
+        if (!actionEl || !buttonEl) return
+
+        actionEl.innerText = action
+        buttonEl.innerText = confirm
+
+        dialogEl.returnValue = 'cancel'
+        dialogEl.showModal()
+        dialogEl.onclose = () => {
+            const result = dialogEl.returnValue
+            currentGame.handleEvent({ result })
+        }
+    }
+
     function getNames() {
         const namesForm = document.createElement('form')
         namesForm.innerHTML = `
             <input type="text" name="p1" placeholder="Player 1 name" required>
-            <input type="text" name="p2" placeholder="Player 2 name" required>
             <button>Begin</button>
+            <input type="text" name="p2" placeholder="Player 2 name" required>
         `
 
         const playerOneInput = namesForm.elements.namedItem('p1')
@@ -668,8 +755,8 @@ function initialiseGame() {
         if (playerOneInput) playerOneInput.value = currentGame.players[0]
         if (playerTwoInput) playerTwoInput.value = currentGame.players[1]
 
-        statusEl.replaceChildren(namesForm)
-        namesForm.classList.add('names-form')
+        infoEl.replaceChildren(namesForm)
+        namesForm.id = 'names-form'
 
         namesForm.addEventListener('submit', (e) => {
             e.preventDefault()
