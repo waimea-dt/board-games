@@ -1,6 +1,15 @@
 :root {
-    --board-square-bg:      var(--pico-color-slate-800);
-    --board-square-label:   var(--pico-color-slate-500);
+    --board-bg:                 var(--pico-color-slate-800);
+    --board-square-bg:          var(--pico-color-slate-950);
+    --board-square-marked-bg:   var(--pico-color-slate-900);
+
+    --board-square-valid:       var(--pico-color-slate-600);
+    --board-square-select:      var(--pico-color-slate-300);
+
+    --board-square-label:       var(--pico-color-slate-600);
+
+    --board-token-white:        var(--pico-color-red-600);
+    --board-token-black:        var(--pico-color-blue-600);
 }
 
 body > header {
@@ -9,8 +18,13 @@ body > header {
     justify-content: space-between;
     gap: 1rem;
 
+    h1 {
+        flex: 1;
+    }
+
     select {
         width: fit-content;
+        margin: 0;
     }
 }
 
@@ -23,14 +37,19 @@ body > main {
 
 
 board {
+    margin: 2rem auto;
     display: flex;
-    gap: 0.25rem;
+    gap: 0.3rem;
+    padding: 0.3rem;
+    background-color: var(--board-bg);
+    width: fit-content;
+    border-radius: 0.5rem;
 
     cell {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 0.25rem;
+        gap: 0.5rem;
 
         square {
             width: 3rem;
@@ -49,37 +68,42 @@ board {
                 border-radius: 2rem;
             }
 
-            &.black::after { background-color: #000; }
-            &.white::after { background-color: #fff; }
-
-            &.selecting {
-                outline: 3px solid var(--pico-primary);
-                cursor: pointer;
-            }
-
-            &.placing {
-                outline: 3px solid var(--pico-primary);
-                cursor: pointer;
-            }
+            &.black::after { background-color: var(--board-token-black); }
+            &.white::after { background-color: var(--board-token-white); }
 
             &.selected {
-                background-color: var(--pico-primary);
+                outline: 3px solid var(--board-square-select);
             }
 
             &.marked {
-                background-color: var(--pico-color-slate-700);
+                background-color: var(--board-square-marked-bg);
             }
         }
 
         label {
             color: var(--board-square-label);
+            line-height: 1;
         }
+    }
+
+    &:hover {
+        cell square.valid {
+            outline: 3px solid var(--board-square-valid);
+            cursor: pointer;
+
+            &:hover {
+                outline-color: var(--board-square-select);
+            }
+        }
+
     }
 }
 
 .names-form {
+    margin: 2rem auto;
     display: flex;
     gap: 1rem;
+    width: fit-content;
 
     input {
         margin: 0;

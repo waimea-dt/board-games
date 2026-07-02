@@ -1,7 +1,3 @@
-const white = 'white'
-const black = 'black'
-const empty = 'empty'
-
 const gameConfigs = {
     pinned: {
         name: 'Pinned',
@@ -150,26 +146,63 @@ const gameConfigs = {
     },
 }
 
-class BaseGame {
+const TOKENS = Object.freeze({
+    white: 'white',
+    black: 'black',
+    empty: null,
+})
+
+
+
+//===============================================================================================
+class BaseGame extends EventTarget {
     constructor(config) {
+        super()
+
         this.config = config
 
-        this.players = ['Player 1', 'Player 2']
+        this.STATES = this.defineStates()
+        this.EVENTS = this.defineEvents()
+        this.TRANSITIONS = this.defineTransitions()
+
+        this.players = ['', '']
         this.scores = [0, 0]
         this.moves = [0, 0]
 
         this.board = []
 
-        this.inProgress = false
-        this.turn = 0
+        this.currentPlayer = 0
+        this.state = this.STATES.GETTING_NAMES
 
-        this.isSelecting = false
-        this.canSelect = []
-        this.selection = null
+        this.selectedCell = null
+        this.selectedToken = null
+        this.canSelect = [TOKENS.white, TOKENS.black]
+        this.canPlace = [TOKENS.empty]
+    }
 
-        this.isPlacing = false
-        this.canPlace = []
-        this.placement = null
+    defineStates() {
+        return Object.freeze({
+            GETTING_NAMES:    'GETTING_NAMES',
+            SELECTING_TOKEN: 'SELECTING_TOKEN',
+            PLACING_TOKEN:  'PLACING_TOKEN',
+        })
+    }
+
+    defineEvents() {
+        return Object.freeze({
+            NAMES_ENTERED:       'NAMES_ENTERED',
+            TOKEN_CLICKED: 'TOKEN_CLICKED',
+            PLACE_CLICKED: 'PLACE_CLICKED',
+            INVALID:             'INVALID',
+        })
+    }
+
+    defineTransitions() {
+        return Object.freeze({
+            [this.STATES.GETTING_NAMES]: {
+                [this.EVENTS.NAMES_ENTERED]: { to: this.STATES.GETTING_NAMES, action: 'getNames', },
+            },
+        })
     }
 
     initialiseBoard() {
@@ -184,7 +217,7 @@ class BaseGame {
     createEmptyBoard(size) {
         this.board.length = 0
         for (let i = 0; i < size; i++) {
-            this.board.push(empty)
+            this.board.push(TOKENS.empty)
         }
     }
 
@@ -196,7 +229,7 @@ class BaseGame {
         let remaining = count
         while (remaining > 0) {
             const position = this.randInt(minPos, maxPos)
-            if (this.board[position] === empty) {
+            if (this.board[position] === TOKENS.empty) {
                 this.board[position] = token
                 remaining--
             }
@@ -204,7 +237,7 @@ class BaseGame {
     }
 
     placeTokens(token) {
-        const placements = token === white ? this.config.whitePlacements : this.config.blackPlacements
+        const placements = token === TOKENS.white ? this.config.whitePlacements : this.config.blackPlacements
         for (let i = 0; i < placements.length; i++) {
             const boardIndex = placements[i]
             if (boardIndex >= 0 && boardIndex < this.board.length) {
@@ -213,94 +246,242 @@ class BaseGame {
         }
     }
 
-    pickTurn() {
-        this.turn = Math.floor(Math.random() * 2)
+    pickPlayer() {
+        this.currentPlayer = Math.floor(Math.random() * 2)
     }
 
     switchPlayer() {
-        this.turn = (this.turn + 1) % 2
+        this.currentPlayer = (this.currentPlayer + 1) % 2
     }
 
-    beginPlayerSelection() {
-        this.isPlacing = false
-        this.isSelecting = true
-        this.canSelect = this.getLegalSelections()
-        this.selection = null
+    startGame() {
+        this.pickPlayer()
     }
 
-    beginPlayerPlacement() {
-        this.isSelecting = false
-        this.isPlacing = true
-        this.canPlace = this.getLegalPlacements(this.selection)
-        this.placement = null
+    handleEvent(detail) {
+        console.log("HANDLE", detail)
+
+        const event = this.classifyEvent(detail)
+        const transition = this.TRANSITIONS[this.state]?.[event]
+        if (!transition) return
+
+        console.log("EVENT", event)
+
+        this[transition.action](detail)
+
+        if (this.state !== this.STATES.GAME_OVER) {
+            this.setState(transition.to)
+        }
     }
 
-    getLegalSelections() {
-        return [black, white]
+    classifyEvent(detail) {
+        return this.EVENTS.INVALID
     }
 
-    getLegalPlacements() {
-        return [empty]
+    setState(newState) {
+        console.log("NEW STATE", newState)
+
+        this.state = newState
+        this.dispatchEvent(new CustomEvent('stateChanged', { detail: { state: newState } }))
     }
 
-    isValidSelection(squareClassList) {
-        return this.canSelect.some((token) => squareClassList.contains(token))
+    selectToken({ cell }) {
+        this.selectedCell = cell
+        this.selectedToken = this.board[cell]
+        this.dispatchEvent(new CustomEvent('tokenSelected', { detail: { cell, token: this.selectedToken } }))
     }
 
-    isValidPlacement(squareClassList) {
-        return this.canPlace.some((token) => squareClassList.contains(token))
+    moveToken({ cell }) {
+        const fromCell = this.selectedCell
+        const token = this.selectedToken ?? this.board[fromCell]
+
+        this.board[fromCell] = TOKENS.empty
+        this.board[cell] = token
+
+        this.selectedCell = null
+        this.selectedToken = null
+
+        this.dispatchEvent(new CustomEvent('tokenMoved', { detail: { fromCell, toCell: cell, token } }))
     }
 
-    applyMove() {
-        const temp = this.board[this.placement]
-        this.board[this.placement] = this.board[this.selection]
-        this.board[this.selection] = temp
+    removeToken({ cell }) {
+        const token = this.selectedToken ?? this.board[cell]
+        this.board[cell] = TOKENS.empty
+
+        this.selectedCell = null
+        this.selectedToken = null
+
+        this.dispatchEvent(new CustomEvent('tokenMoved', { detail: { fromCell: cell, token } }))
+
+        return token
     }
 
-    getWinState() {
-        return null
+    cancelSelection() {
+        this.selectedCell = null
+        this.selectedToken = null
+        this.dispatchEvent(new CustomEvent('selectionCancelled'))
+    }
+
+    validSelections(cell) {
+        return this.board.reduce((acc, e, i) => {
+            if (this.canSelect.includes(e)) acc.push(i)
+            return acc
+        }, [])
+    }
+
+    validPlacements(cell) {
+        return this.board.reduce((acc, e, i) => {
+            if (this.canPlace.includes(e)) acc.push(i)
+            return acc
+        }, [])
+    }
+
+    hasWon() {
+        return false
     }
 }
 
+//===============================================================================================
 class PinnedGame extends BaseGame {
+
+    constructor(config) {
+        super(config)
+    }
+
+    defineStates() {
+        return Object.freeze({
+            GETTING_NAMES:   'GETTING_NAMES',
+            SELECTING_TOKEN: 'SELECTING_TOKEN',
+            PLACING_TOKEN:   'PLACING_TOKEN',
+        })
+    }
+
+    defineEvents() {
+        return Object.freeze({
+            NAMES_ENTERED:        'NAMES_ENTERED',
+            TOKEN_CLICKED:        'TOKEN_CLICKED',
+            TOKEN_CLICKED_CELL_1: 'TOKEN_CLICKED_CELL_1',
+            PLACE_CLICKED:        'PLACE_CLICKED',
+            INVALID:              'INVALID',
+        })
+    }
+
+    defineTransitions() {
+        return Object.freeze({
+            [this.STATES.GETTING_NAMES]: {
+                [this.EVENTS.NAMES_ENTERED]:        { to: this.STATES.SELECTING_TOKEN, action: 'startGame', },
+            },
+            [this.STATES.SELECTING_TOKEN]: {
+                [this.EVENTS.TOKEN_CLICKED]:        { to: this.STATES.PLACING_TOKEN,   action: 'selectToken', },
+                [this.EVENTS.TOKEN_CLICKED_CELL_1]: { to: this.STATES.SELECTING_TOKEN, action: 'removeToken', },
+            },
+            [this.STATES.PLACING_TOKEN]: {
+                [this.EVENTS.PLACE_CLICKED]:        { to: this.STATES.SELECTING_TOKEN, action: 'moveToken', },
+                [this.EVENTS.INVALID]:              { to: this.STATES.SELECTING_TOKEN, action: 'cancelSelection', },
+            },
+        })
+    }
+
     setupBoard() {
         this.createEmptyBoard(this.config.boardSize)
         this.placeTokenRandomly(
-            white,
+            TOKENS.white,
             this.config.whiteTokens,
             1,
             this.config.boardSize - 1
         )
         this.placeTokenRandomly(
-            black,
+            TOKENS.black,
             this.config.blackTokens,
             Math.floor(this.config.boardSize / 3),
             this.config.boardSize - 1
         )
     }
+
+    classifyEvent(detail) {
+        console.log("CLASSIFY", detail)
+
+        const isEnteringNames       = this.state === this.STATES.GETTING_NAMES
+        const isChoosingToken       = this.state === this.STATES.SELECTING_TOKEN
+        const isChoosingDestination = this.state === this.STATES.PLACING_TOKEN
+
+        if (isEnteringNames && detail.p1 && detail.p2) return this.EVENTS.NAMES_ENTERED
+
+        if (detail.cell === null || detail.cell === undefined) return this.EVENTS.INVALID
+
+        console.log("SELECT", this.validSelections(detail.cell))
+        console.log("PLACE", this.validPlacements(detail.cell))
+
+        const isValidToken = this.validSelections(detail.cell).includes(detail.cell)
+        const isValidPlace = this.validPlacements(detail.cell).includes(detail.cell)
+        const isFirstCell = detail.cell === 0
+
+        if (isChoosingToken && isValidToken) {
+            if (isFirstCell) return this.EVENTS.TOKEN_CLICKED_CELL_1
+            else             return this.EVENTS.TOKEN_CLICKED
+        }
+
+        if (isChoosingDestination && isValidPlace) return this.EVENTS.PLACE_CLICKED
+
+        return this.EVENTS.INVALID
+    }
+
+    startGame({ p1, p2 }) {
+        this.players[0] = p1
+        this.players[1] = p2
+        this.pickPlayer()
+    }
+
+    moveToken({ cell }) {
+        super.moveToken({ cell })
+        this.switchPlayer()
+    }
+
+    removeToken({ cell }) {
+        const token = super.removeToken({ cell })
+
+        if (this.hasWon(cell, token)) {
+            this.setState(this.STATES.GAME_OVER)
+            this.dispatchEvent(new CustomEvent('gameWon', { detail: { winner: this.currentPlayer } }))
+            return
+        }
+
+        this.switchPlayer()
+    }
+
+    hasWon(cell, token) {
+        return (cell === 0) && (token === TOKENS.black)
+    }
 }
 
+//===============================================================================================
 class SqueezeGame extends BaseGame {
     setupBoard() {
         this.createEmptyBoard(this.config.boardSize)
-        this.placeTokens(white)
-        this.placeTokens(black)
+        this.placeTokens(TOKENS.white)
+        this.placeTokens(TOKENS.black)
     }
 }
 
+//===============================================================================================
 class LeapfrogGame extends BaseGame {
     setupBoard() {
         this.createEmptyBoard(this.config.boardSize)
-        this.placeTokens(white)
-        this.placeTokens(black)
+        this.placeTokens(TOKENS.white)
+        this.placeTokens(TOKENS.black)
     }
 }
 
+//===============================================================================================
 class ChainReactionGame extends BaseGame {
     setupBoard() {
         this.createEmptyBoard(this.config.boardSize)
     }
 }
+
+
+
+//===============================================================================================
 
 const gameVariants = {
     pinned: PinnedGame,
@@ -313,30 +494,22 @@ let currentGame = null
 let selectEl, nameEl, statusEl, infoEl, boardEl, instructEl = null
 let boardSquares = []
 
-document.addEventListener('DOMContentLoaded', initialise)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialiseGame)
+} else {
+    initialiseGame()
+}
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        if (currentGame?.inProgress && currentGame?.isPlacing) {
-            currentGame.isPlacing = false
-            currentGame.isSelecting = true
+function initialiseGame() {
+    const selectEl = document.getElementById('game-select')
+    const restartEl = document.getElementById('game-restart')
+    const nameEl = document.getElementById('game-name')
+    const statusEl = document.getElementById('game-status')
+    const infoEl = document.getElementById('game-info')
+    const instructEl = document.getElementById('game-instructions')
+    const boardEl = document.querySelector('board')
 
-            for (const square of boardSquares) {
-                square.classList.remove('selected')
-                square.classList.remove('placing')
-            }
-            playerSelect()
-        }
-    }
-})
-
-function initialise() {
-    selectEl = document.getElementById('game-select')
-    nameEl = document.getElementById('game-name')
-    statusEl = document.getElementById('game-status')
-    infoEl = document.getElementById('game-info')
-    instructEl = document.getElementById('game-instructions')
-    boardEl = document.querySelector('board')
+    if (!selectEl || !restartEl || !nameEl || !statusEl || !infoEl || !instructEl || !boardEl) return
 
     let options = ''
     for (const [id, config] of Object.entries(gameConfigs)) {
@@ -345,176 +518,169 @@ function initialise() {
     selectEl.innerHTML = options
     selectEl.addEventListener('change', setupGame)
 
-    setupGame()
-    showBoard()
-    getNames()
-}
+    restartEl.addEventListener('click', setupGame)
 
-function setupGame() {
-    const selectedGameId = selectEl.value
-    const config = gameConfigs[selectedGameId]
-    const GameVariant = gameVariants[selectedGameId]
-    if (!config || !GameVariant) throw new Error('No selected game')
+    function setupGame() {
+        const previousPlayerNames = currentGame ? [...currentGame.players] : null
 
-    currentGame = new GameVariant(config)
-    console.log('Selected', currentGame.config.name)
-
-    nameEl.innerText = `${currentGame.config.name} ${currentGame.config.icon}`
-    instructEl.innerHTML = `
-        <summary>Instructions for ${currentGame.config.name}</summary>
-        <h3>How to Play ${currentGame.config.name} ${currentGame.config.icon}</h3>
-        ${currentGame.config.instructions}
-    `
-
-    currentGame.initialiseBoard()
-    showBoard()
-}
-
-function showBoard() {
-    boardEl.replaceChildren()
-    boardSquares = []
-
-    for (let i = 0; i < currentGame.board.length; i++) {
-        const cellEl = document.createElement('cell')
-        const squareEl = document.createElement('square')
-        const labelEl = document.createElement('label')
-
-        squareEl.className = currentGame.board[i]
-        if (currentGame.config.markSquares.includes(i))
-            squareEl.classList.add('marked')
-
-        labelEl.innerText = i + 1
-
-        boardSquares.push(squareEl)
-        cellEl.appendChild(squareEl)
-        cellEl.appendChild(labelEl)
-        boardEl.appendChild(cellEl)
-
-        squareEl.addEventListener('click', (e) => {
-            const square = e.currentTarget
-
-            if (currentGame.inProgress && currentGame.isSelecting) {
-                if (currentGame.isValidSelection(square.classList)) {
-                    square.classList.remove('selecting')
-                    square.classList.add('selected')
-                    currentGame.selection = i
-                    playerPlace()
-                }
-            }
-            else if (currentGame.inProgress && currentGame.isPlacing) {
-                if (currentGame.isValidPlacement(square.classList)) {
-                    square.classList.remove('placing')
-                    square.classList.add('placed')
-                    currentGame.placement = i
-                    moveToken()
-                    currentGame.switchPlayer()
-                    playerSelect()
-                }
-                else if (square.classList.contains('selected')) {
-                    square.classList.remove('selected')
-                    square.classList.add('selecting')
-                    playerSelect()
-                }
-            }
-        })
-
-        squareEl.addEventListener('mouseover', (e) => {
-            const square = e.currentTarget
-            if (currentGame.inProgress && currentGame.isSelecting) {
-                if (currentGame.isValidSelection(square.classList)) {
-                    square.classList.add('selecting')
-                }
-            }
-            else if (currentGame.inProgress && currentGame.isPlacing) {
-                if (currentGame.isValidPlacement(square.classList)) {
-                    square.classList.add('placing')
-                }
-            }
-        })
-
-        squareEl.addEventListener('mouseout', () => {
-            if (currentGame.inProgress && currentGame.isSelecting) {
-                squareEl.classList.remove('selecting')
-            }
-            else if (currentGame.inProgress && currentGame.isPlacing) {
-                squareEl.classList.remove('placing')
-            }
-        })
-    }
-}
-
-function getNames() {
-    const namesForm = document.createElement('form')
-    namesForm.innerHTML = `
-        <input
-            type="text"
-            name="p1"
-            placeholder="Player 1 name"
-            aria-label="Player 1 name"
-            required
-        >
-        <input
-            type="text"
-            name="p2"
-            placeholder="Player 2 name"
-            aria-label="Player 2 name"
-            required
-        >
-        <button>Begin</button>
-    `
-
-    statusEl.replaceChildren(namesForm)
-    namesForm.classList.add('names-form')
-
-    namesForm.addEventListener('submit', (e) => {
-        e.preventDefault()
-        const formData = new FormData(e.target)
-        const data = Object.fromEntries(formData.entries())
-
-        if (data.p1 && data.p2) {
-            currentGame.players[0] = data.p1
-            currentGame.players[1] = data.p2
-            currentGame.inProgress = true
-
-            statusEl.replaceChildren()
-
-            showNames()
-            currentGame.pickTurn()
-            playerSelect()
+        if (currentGame) {
+            unbindGameEvents(currentGame)
         }
-    })
-}
 
-function showNames() {
-    infoEl.innerHTML = `${currentGame.players[0]} vs ${currentGame.players[1]}`
-}
+        const selectedGameId = selectEl.value
+        const config = gameConfigs[selectedGameId]
+        const GameVariant = gameVariants[selectedGameId]
+        if (!config || !GameVariant) throw new Error('No selected game')
 
-function playerSelect() {
-    statusEl.innerHTML = `
-        <h3>${currentGame.players[currentGame.turn]}, your turn</h3>
-        <p>Select a token to move...</p>
-    `
+        currentGame = new GameVariant(config)
 
-    currentGame.beginPlayerSelection()
-}
+        if (previousPlayerNames) {
+            currentGame.players[0] = previousPlayerNames[0]
+            currentGame.players[1] = previousPlayerNames[1]
+        }
 
-function playerPlace() {
-    statusEl.innerHTML = `
-        <h3>${currentGame.players[currentGame.turn]}, your turn</h3>
-        <p>Select where to place the token...</p>
-    `
+        console.log('Selected', currentGame.config.name)
 
-    currentGame.beginPlayerPlacement()
-}
+        nameEl.innerText = `${currentGame.config.name} ${currentGame.config.icon}`
+        instructEl.innerHTML = `
+            <summary>Instructions for ${currentGame.config.name}</summary>
+            <h3>How to Play ${currentGame.config.name} ${currentGame.config.icon}</h3>
+            ${currentGame.config.instructions}
+        `
 
-function moveToken() {
-    currentGame.applyMove()
-
-    const winState = currentGame.getWinState()
-    if (winState) {
-        currentGame.inProgress = false
-        statusEl.innerHTML = `<h3>${winState.message}</h3>`
+        currentGame.initialiseBoard()
+        bindGameEvents(currentGame)
+        renderBoard()
+        renderStatus()
     }
 
-    showBoard()
+    function bindGameEvents(game) {
+        game.addEventListener('stateChanged',  renderBoard)
+        game.addEventListener('stateChanged',  renderStatus)
+        game.addEventListener('tokenSelected', renderBoard)
+        game.addEventListener('placeSelected', renderBoard)
+        game.addEventListener('tokenMoved',    renderBoard)
+        game.addEventListener('gameWon',       onGameWon)
+    }
+
+    function unbindGameEvents(game) {
+        game.removeEventListener('stateChanged',  renderBoard)
+        game.removeEventListener('stateChanged',  renderStatus)
+        game.removeEventListener('tokenSelected', renderBoard)
+        game.removeEventListener('placeSelected', renderBoard)
+        game.removeEventListener('tokenMoved',    renderBoard)
+        game.removeEventListener('gameWon',       onGameWon)
+    }
+
+    function onGameWon(event) {
+        const game = event.currentTarget
+        const winnerLabel = game.players[event.detail.winner]
+
+        const headingEl = document.createElement('h1')
+        headingEl.textContent = `${winnerLabel} Wins!`
+
+        const restartButtonEl = document.createElement('button')
+        restartButtonEl.type = 'button'
+        restartButtonEl.textContent = 'Restart'
+        restartButtonEl.addEventListener('click', setupGame)
+
+        statusEl.replaceChildren(headingEl, restartButtonEl)
+    }
+
+    setupGame()
+
+    function renderBoard() {
+        console.log("RENDER", currentGame.board)
+
+        boardEl.replaceChildren()
+        boardSquares = []
+
+        for (let i = 0; i < currentGame.board.length; i++) {
+            const cellEl = document.createElement('cell')
+            const squareEl = document.createElement('square')
+            const labelEl = document.createElement('label')
+
+            squareEl.className = currentGame.board[i]
+            if (currentGame.config.markSquares.includes(i)) {
+                squareEl.classList.add('marked')
+            }
+
+            if (i == currentGame.selectedCell) {
+                squareEl.classList.add('selected')
+            }
+
+            if (currentGame.state === currentGame.STATES.SELECTING_TOKEN) {
+                if (currentGame.validSelections(i).includes(i)) {
+                    squareEl.classList.add('valid')
+                }
+            }
+
+            if (currentGame.state === currentGame.STATES.PLACING_TOKEN) {
+                if (currentGame.validPlacements(i).includes(i)) {
+                    squareEl.classList.add('valid')
+                }
+            }
+
+            labelEl.innerText = i + 1
+
+            boardSquares.push(squareEl)
+            cellEl.appendChild(squareEl)
+            cellEl.appendChild(labelEl)
+            boardEl.appendChild(cellEl)
+
+            squareEl.addEventListener('click', () => currentGame.handleEvent({ cell: i }))
+        }
+    }
+
+    function renderStatus() {
+        if (currentGame.state === currentGame.STATES.GAME_OVER) return
+
+        if (currentGame.state === currentGame.STATES.GETTING_NAMES) {
+            getNames()
+            return
+        }
+
+        infoEl.innerHTML = `${currentGame.players[0]} vs ${currentGame.players[1]}`
+
+        const playerTurn = `<h3>${currentGame.players[currentGame.currentPlayer]}, your turn</h3>`
+
+        if (currentGame.state === currentGame.STATES.SELECTING_TOKEN) {
+            statusEl.innerHTML = `${playerTurn} <p>Select a token to move...</p>`
+        }
+
+        if (currentGame.state === currentGame.STATES.PLACING_TOKEN) {
+            statusEl.innerHTML = `${playerTurn} <p>Select where to place the token...</p>`
+        }
+
+    }
+
+    function getNames() {
+        const namesForm = document.createElement('form')
+        namesForm.innerHTML = `
+            <input type="text" name="p1" placeholder="Player 1 name" required>
+            <input type="text" name="p2" placeholder="Player 2 name" required>
+            <button>Begin</button>
+        `
+
+        const playerOneInput = namesForm.elements.namedItem('p1')
+        const playerTwoInput = namesForm.elements.namedItem('p2')
+
+        if (playerOneInput) playerOneInput.value = currentGame.players[0]
+        if (playerTwoInput) playerTwoInput.value = currentGame.players[1]
+
+        statusEl.replaceChildren(namesForm)
+        namesForm.classList.add('names-form')
+
+        namesForm.addEventListener('submit', (e) => {
+            e.preventDefault()
+            const formData = new FormData(e.target)
+            const data = Object.fromEntries(formData.entries())
+
+            if (!data.p1 || !data.p2) return
+
+            currentGame.handleEvent({ p1: data.p1, p2: data.p2 })
+        })
+    }
+
 }
+
